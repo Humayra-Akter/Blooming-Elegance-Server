@@ -24,10 +24,8 @@ async function run() {
   try {
     await client.connect();
     const bloomingElegance = client.db("bloomingElegance");
-    const userDB = client.db("userDB");
-    const flowersCollection =
-      bloomingElegance.collection("flowersCollection");
-    const userCollection = userDB.collection("userCollection");
+    const flowersCollection = bloomingElegance.collection("flowersCollection");
+    const userCollection = bloomingElegance.collection("userCollection");
 
     // product
     app.post("/flowers", async (req, res) => {
@@ -68,14 +66,43 @@ async function run() {
       res.send(result);
     });
 
-    // user
     app.post("/user", async (req, res) => {
       const user = req.body;
-      await userCollection.insertOne(user);
-      return res.send({ token });
+      const isUserExist = await userCollection.findOne({ email: user?.email });
+      if (isUserExist?._id) {
+        return res.send({
+          status: "success",
+          message: "Login success",
+        });
+      }
+      const result = await userCollection.insertOne(user);
+      return res.send(result);
     });
 
-    // user/test@gmail
+    app.get("/user/get/:id", async (req, res) => {
+      const id = req.params.id;
+      const result = await userCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
+
+    app.get("/user/:email", async (req, res) => {
+      const email = req.params.email;
+      const result = await userCollection.findOne({ email });
+      res.send(result);
+    });
+
+    app.patch("/user/:email", async (req, res) => {
+      const email = req.params.email;
+      const userData = req.body;
+      const result = await userCollection.updateOne(
+        { email },
+        { $set: userData },
+        { upsert: true }
+      );
+      res.send(result);
+    });
 
     console.log("Database is connected");
   } finally {
