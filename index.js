@@ -108,6 +108,12 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/user", async (req, res) => {
+      const userData = userCollection.find();
+      const result = await userData.toArray();
+      res.send(result);
+    });
+
     app.get("/user/:email", async (req, res) => {
       const email = req.params.email;
       const result = await userCollection.findOne({ email });
