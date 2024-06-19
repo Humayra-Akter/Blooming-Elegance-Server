@@ -22,11 +22,23 @@ function createToken(user) {
 
 function verifyToken(req, res, next) {
   const token = req.headers.authorization.split(" ")[1];
-  const verify = jwt.verify(token, "secret");
-  if (!verify?.email) {
-    return res.send("You are not authorized");
+  try {
+    const verify = jwt.verify(token, "secret");
+    if (!verify?.email) {
+      return res.status(403).send("You are not authorized");
+    }
+    req.user = verify.email;
+    next();
+  } catch (error) {
+    return res.status(403).send("You are not authorized");
   }
-  req.user = verify.email;
+}
+
+function validateObjectId(req, res, next) {
+  const id = req.params.id;
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).send("Invalid ObjectId");
+  }
   next();
 }
 
@@ -46,7 +58,8 @@ async function run() {
     const bloomingElegance = client.db("bloomingElegance");
     const flowersCollection = bloomingElegance.collection("flowersCollection");
     const userCollection = bloomingElegance.collection("userCollection");
-    // product
+
+    // Flowers routes
     app.post("/flowers", verifyToken, async (req, res) => {
       const flowersData = req.body;
       const result = await flowersCollection.insertOne(flowersData);
@@ -59,38 +72,50 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/flowers/:id", async (req, res) => {
+    app.get("/flowers/:id", validateObjectId, async (req, res) => {
       const id = req.params.id;
       const flowersData = await flowersCollection.findOne({
         _id: new ObjectId(id),
       });
       res.send(flowersData);
     });
-    app.patch("/flowers/:id", verifyToken, async (req, res) => {
-      const id = req.params.id;
-      const updatedData = req.body;
-      const result = await flowersCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $set: updatedData }
-      );
-      res.send(result);
-    });
-    app.delete("/flowers/:id", verifyToken, async (req, res) => {
-      const id = req.params.id;
-      const result = await flowersCollection.deleteOne({
-        _id: new ObjectId(id),
-      });
-      res.send(result);
-    });
-    // user
+
+    app.patch(
+      "/flowers/:id",
+      verifyToken,
+      validateObjectId,
+      async (req, res) => {
+        const id = req.params.id;
+        const updatedData = req.body;
+        const result = await flowersCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updatedData }
+        );
+        res.send(result);
+      }
+    );
+
+    app.delete(
+      "/flowers/:id",
+      verifyToken,
+      validateObjectId,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await flowersCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      }
+    );
+
+    // User routes
     app.post("/user", async (req, res) => {
       const user = req.body;
-
       const token = createToken(user);
       const isUserExist = await userCollection.findOne({ email: user?.email });
       if (isUserExist?._id) {
         return res.send({
-          statu: "success",
+          status: "success",
           message: "Login success",
           token,
         });
@@ -99,11 +124,8 @@ async function run() {
       return res.send({ token });
     });
 
-    // user/test@gmail
-
-    app.get("/user/get/:id", async (req, res) => {
+    app.get("/user/get/:id", validateObjectId, async (req, res) => {
       const id = req.params.id;
-      console.log(id);
       const result = await userCollection.findOne({ _id: new ObjectId(id) });
       res.send(result);
     });
@@ -135,12 +157,13 @@ async function run() {
   } finally {
   }
 }
+
 run().catch(console.dir);
 
 app.get("/", (req, res) => {
   res.send("Route is working");
 });
 
-app.listen(port, (req, res) => {
+app.listen(port, () => {
   console.log("App is listening on port :", port);
 });
